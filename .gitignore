@@ -1,0 +1,27 @@
+# Large CSV files (> 100MB)
+SECTION1_DimensionalityReduction/results/tables/PCA Method with Mean-Filling/item_mean_centered_ratings.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+meetup_dataset-main.zip
+data/
