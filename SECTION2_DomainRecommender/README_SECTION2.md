@@ -118,7 +118,18 @@ This section implements a **domain-specific recommender system** for the domain 
 | Total Groups | 70,604 |
 | Total Tags | 77,810 |
 | Total Interactions | 10,627,861 |
-| **Data Sparsity** | **99.8%** |
+| **Data Sparsity** | **99.9963%** |
+
+### 2.3 Sampled Dataset (for computation)
+
+| Metric | Value |
+|--------|-------|
+| Sampled Users | 20,000 |
+| Sampled Groups | 34,838 |
+| Sampled Interactions | 731,426 |
+| User-Tag Preferences | 609,442 |
+| Group-Tag Associations | 298,467 |
+| Train/Test Split | 80% / 20% |
 
 ### 2.3 Data Files Description
 
@@ -318,9 +329,12 @@ Where:
 
 | Alpha (α) | CB Weight | CF Weight | Hit Rate |
 |-----------|-----------|-----------|----------|
-| 0.3 | 30% | 70% | **43%** ✓ Best |
-| 0.5 | 50% | 50% | 33% |
-| 0.7 | 70% | 30% | 21% |
+| 0.2 | 20% | 80% | 37.0% |
+| **0.3** | **30%** | **70%** | **37.5%** ✓ Best |
+| 0.4 | 40% | 60% | 37.0% |
+| 0.5 | 50% | 50% | 32.0% |
+| 0.6 | 60% | 40% | 19.5% |
+| 0.7 | 70% | 30% | 15.5% |
 
 **Best α = 0.3** → Collaborative Filtering is more effective for this domain
 
@@ -328,7 +342,7 @@ Where:
 
 | Challenge | How Hybrid Solves It |
 |-----------|---------------------|
-| **High Sparsity (99.8%)** | CB provides fallback when CF data is insufficient |
+| **High Sparsity (99.99%)** | CB provides fallback when CF data is insufficient |
 | **Cold-Start Users** | CB uses tag preferences even for new users |
 | **Active Users** | CF captures co-membership patterns effectively |
 | **Rich Content** | 77,810 tags provide strong content signal |
@@ -380,29 +394,29 @@ Result:
 
 | Rank | Method | Precision@10 | Recall@10 | NDCG@10 | Hit Rate |
 |------|--------|--------------|-----------|---------|----------|
-| 1 | **Hybrid (α=0.3)** | **0.1110** | **0.0585** | **0.1277** | **0.4500** |
-| 2 | Popularity | 0.0235 | 0.0131 | 0.0256 | 0.1600 |
-| 3 | Random | 0.0040 | 0.0027 | 0.0031 | 0.0400 |
-| 4 | Content-Based | 0.0025 | 0.0014 | 0.0018 | 0.0200 |
-| 5 | CF (SVD k=10) | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| 6 | CF (SVD k=20) | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| 1 | **CF (SVD k=20)** | **0.0977** | **0.0988** | **0.1280** | **0.4967** |
+| 2 | Hybrid (α=0.3) | 0.0763 | 0.0772 | 0.1001 | 0.4133 |
+| 3 | CF (SVD k=10) | 0.0727 | 0.0729 | 0.0945 | 0.4000 |
+| 4 | Popularity | 0.0150 | 0.0150 | 0.0184 | 0.1133 |
+| 5 | Content-Based | 0.0100 | 0.0113 | 0.0157 | 0.0833 |
+| 6 | Random | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 
 #### **Cold-Start Performance (Hit Rate by User Activity Level)**
 
 | Activity Level | Hybrid | Content-Based | Collaborative | Popularity |
 |----------------|--------|---------------|---------------|------------|
-| 5-20 ratings | 0.00 | 0.00 | 0.00 | 0.00 |
-| 21-50 ratings | **0.36** | 0.02 | 0.00 | 0.12 |
-| 51-100 ratings | **0.52** | 0.00 | 0.00 | 0.14 |
-| 100+ ratings | **0.76** | 0.02 | 0.00 | 0.28 |
+| 5-20 ratings | 0.28 | 0.06 | 0.26 | 0.10 |
+| 21-50 ratings | 0.38 | 0.16 | 0.28 | 0.08 |
+| 51-100 ratings | 0.56 | 0.08 | 0.50 | 0.12 |
+| 100+ ratings | **0.72** | 0.14 | 0.70 | 0.36 |
 
 #### **Key Findings:**
 
-1. **Hybrid outperforms all individual methods** with Hit Rate = 45%
-2. **NDCG@10 = 0.1277** indicates good ranking quality
-3. **Cold-start handling**: Hybrid improves significantly with user activity
-4. **CF alone fails** due to data mismatch between CB and CF recommenders
-5. **Popularity baseline** is a strong simple baseline (16% Hit Rate)
+1. **CF (SVD k=20) performs best overall** with Hit Rate = 49.67%
+2. **Hybrid achieves strong performance** with Hit Rate = 41.33%
+3. **Cold-start handling**: Hybrid outperforms all methods for low-activity users
+4. **Precision@10 = 9.77%** for best method indicates good recommendation quality
+5. **All methods beat Random baseline** confirming system effectiveness
 
 ### 4.3 Why These Metrics?
 
@@ -682,15 +696,15 @@ Where:
 - **CF** = Normalized Collaborative Filtering score
 
 #### Alpha Tuning
-- Test α values: [0.3, 0.5, 0.7]
+- Test α values: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 - Evaluate using **Hit Rate** on test set
-- Select best α based on performance
+- Best α = **0.3** (Hit Rate: 37.5%)
 
 #### 9.2 Justification for Hybrid Approach
 
 | Domain Characteristic | Why Hybrid Works |
 |----------------------|------------------|
-| High Sparsity (99.8%) | CB provides fallback when CF fails |
+| High Sparsity (99.99%) | CB provides fallback when CF fails |
 | Rich Content Features | 77,810+ unique tags available |
 | Implicit Feedback | Both CB and CF work on same scale |
 | Cold-Start Problem | CB uses tag preferences for new users |
@@ -760,6 +774,7 @@ SAMPLE_SIZE = 20000  # Number of users to sample (adjust based on RAM)
 | **Hit Rate** | % of users with at least one correct recommendation in top-N |
 | **Precision@K** | Fraction of recommended items that are relevant |
 | **Recall@K** | Fraction of relevant items that are recommended |
+| **NDCG@K** | Normalized Discounted Cumulative Gain (ranking quality) |
 
 ---
 
@@ -784,9 +799,32 @@ $$\text{Score} = \alpha \times \text{CB}_{norm} + (1-\alpha) \times \text{CF}_{n
 | Directory | Contents |
 |-----------|----------|
 | `results/tables/Data_Preprocessing/` | Dataset statistics |
-| `results/tables/Content_Based/` | TF-IDF features, user profiles |
+| `results/tables/Content_Based/` | TF-IDF features, user profiles, Top-10/20 recommendations |
 | `results/tables/Collaborative_Filtering/` | User similarity, SVD results |
-| `results/tables/Hybrid_System/` | Alpha tuning, final recommendations |
+| `results/tables/Hybrid_System/` | Alpha tuning, comparison results, cold-start analysis |
 | `results/plots/` | All visualizations |
+
+---
+
+## Final Results Summary
+
+### Best Performing Methods
+
+| Rank | Method | Hit Rate | NDCG@10 |
+|------|--------|----------|---------|
+| 🥇 | CF (SVD k=20) | 49.67% | 0.128 |
+| 🥈 | Hybrid (α=0.3) | 41.33% | 0.100 |
+| 🥉 | CF (SVD k=10) | 40.00% | 0.095 |
+
+### Cold-Start Performance
+- **Hybrid** provides consistent performance across all user activity levels
+- For users with 5-20 interactions: Hybrid achieves **28%** Hit Rate
+- For users with 100+ interactions: Hybrid achieves **72%** Hit Rate
+
+### Conclusion
+The **weighted hybrid approach** successfully combines Content-Based and Collaborative Filtering, providing:
+1. **Strong overall performance** competing with pure CF methods
+2. **Robust cold-start handling** through CB fallback
+3. **Scalable architecture** for large datasets (20K users, 35K groups)
 
 ---
