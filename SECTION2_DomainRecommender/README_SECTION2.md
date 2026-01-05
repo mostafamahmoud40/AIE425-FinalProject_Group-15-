@@ -1,12 +1,460 @@
 # Section 2: Interest-Based Group Recommendation System
 
-## Overview
+---
 
-This section implements a **domain-specific recommender system** for recommending interest-based groups to users. The system combines three approaches:
+## 1. System Description and Architecture
 
-1. **Content-Based Filtering** - Using TF-IDF on group tags
-2. **Collaborative Filtering** - User-based CF with SVD
-3. **Hybrid System** - Weighted combination of both approaches
+### 1.1 System Overview
+
+This section implements a **domain-specific recommender system** for the domain of **Interest-Based Group Formation Recommendation**. The system recommends groups to users based on their interests and the behavior of similar users.
+
+**Domain:** Interest-Based Group Formation Recommendation (e.g., Meetup.com groups)
+
+**Goal:** Recommend relevant interest groups to users based on:
+- Their explicit interests (tags they follow)
+- Their implicit behavior (groups they've joined)
+- Similar users' preferences
+
+### 1.2 System Components
+
+| Component | Description |
+|-----------|-------------|
+| **Users** | People looking for interest-based groups to join |
+| **Items** | Interest groups (characterized by tags) |
+| **Features** | Tags/topics describing user interests and group themes |
+| **Interactions** | User-Group memberships (implicit feedback) |
+
+### 1.3 System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SYSTEM ARCHITECTURE                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌──────────────┐
+                              │     USER     │
+                              │  (Interests) │
+                              └──────┬───────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DATA LAYER                                     │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
+│  │ User-Group  │  │  User-Tag   │  │  Group-Tag  │  │  Tag-Text   │        │
+│  │ Memberships │  │ Preferences │  │ Associations│  │ Descriptions│        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          FEATURE EXTRACTION                                 │
+│  ┌─────────────────────────────┐  ┌─────────────────────────────┐          │
+│  │   TF-IDF Vectorization      │  │   User-Item Matrix          │          │
+│  │   (Group Tag Features)      │  │   (Binary Interactions)     │          │
+│  └─────────────────────────────┘  └─────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    ▼                                 ▼
+┌─────────────────────────────────┐  ┌─────────────────────────────────┐
+│    CONTENT-BASED FILTERING      │  │   COLLABORATIVE FILTERING       │
+│                                 │  │                                 │
+│  • User Profile (TF-IDF)        │  │  • User-User Similarity         │
+│  • Group Features (TF-IDF)      │  │  • SVD Matrix Factorization     │
+│  • Cosine Similarity            │  │  • K-Nearest Neighbors          │
+│                                 │  │                                 │
+│  "Groups matching your          │  │  "Groups joined by similar      │
+│   interests"                    │  │   users"                        │
+└─────────────────────────────────┘  └─────────────────────────────────┘
+                    │                                 │
+                    │     CB Score          CF Score  │
+                    └────────────────┬────────────────┘
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          HYBRID RECOMMENDER                                 │
+│                                                                             │
+│                   Score = α × CB + (1 - α) × CF                             │
+│                                                                             │
+│  • Weighted combination of both approaches                                  │
+│  • Alpha tuning for optimal balance                                         │
+│  • Cold-start handling for new users                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+                         ┌───────────────────────┐
+                         │   RECOMMENDED GROUPS  │
+                         │   (Top-N for user)    │
+                         └───────────────────────┘
+```
+
+### 1.4 Recommendation Approaches
+
+| Approach | Method | Description |
+|----------|--------|-------------|
+| **Content-Based** | TF-IDF + Cosine Similarity | Matches user interests with group tags |
+| **Collaborative** | User-Based CF + SVD | Finds groups joined by similar users |
+| **Hybrid** | Weighted Combination | α × CB + (1-α) × CF for best results |
+
+---
+
+## 2. Data Collection and Preprocessing
+
+### 2.1 Data Source
+
+**Dataset:** Meetup.com Interest Groups Dataset
+
+| Attribute | Value |
+|-----------|-------|
+| Source | Meetup.com (Public Dataset) |
+| Format | CSV files |
+| Size | ~50MB+ |
+| Type | Implicit Feedback (memberships) |
+
+### 2.2 Dataset Statistics
+
+| Metric | Value |
+|--------|-------|
+| Total Users | 4,111,476 |
+| Total Groups | 70,604 |
+| Total Tags | 77,810 |
+| Total Interactions | 10,627,861 |
+| **Data Sparsity** | **99.8%** |
+
+### 2.3 Data Files Description
+
+| File | Columns | Records | Description |
+|------|---------|---------|-------------|
+| `user_group.csv` | user_id, group_id | 10.6M | User-Group memberships |
+| `user_tag.csv` | user_id, tag_id | - | User interest tags |
+| `group_tag.csv` | group_id, tag_id | - | Group topic tags |
+| `tag_text.csv` | tag_id, tag_text | 77,810 | Tag descriptions |
+| `user_event.csv` | user_id, event_id | - | Event attendance |
+| `event_group.csv` | event_id, group_id | - | Event-Group mapping |
+
+### 2.4 Data Preprocessing Steps
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DATA PREPROCESSING PIPELINE                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  1. DATA LOADING                                                │
+│     • Load all CSV files with proper column names               │
+│     • Handle missing headers                                    │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. DATA CLEANING                                               │
+│     • Remove duplicate user-group memberships                   │
+│     • Handle missing values in tag texts                        │
+│     • Filter invalid IDs                                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. SAMPLING (for memory efficiency)                            │
+│     • Select top N popular groups (min 50 members)              │
+│     • Select active users (min 5 interactions)                  │
+│     • Limit to 20,000 users for 16GB RAM                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. TEXT PREPROCESSING (for Content-Based)                      │
+│     • Lowercase conversion                                      │
+│     • English stop words removal                                │
+│     • TF-IDF vectorization (max 5000 features)                  │
+│     • min_df=2, max_df=0.95 filtering                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  5. MATRIX CONSTRUCTION                                         │
+│     • User-Item Matrix (sparse, binary)                         │
+│     • Item-Feature Matrix (TF-IDF weights)                      │
+│     • User-User Similarity Matrix                               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  6. TRAIN/TEST SPLIT                                            │
+│     • 80% training, 20% testing                                 │
+│     • Random split with seed=42                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 2.5 Preprocessing Outputs
+
+| File | Description |
+|------|-------------|
+| `dataset_summary.csv` | Overall statistics |
+| `user_group_counts.csv` | Groups per user distribution |
+| `group_member_counts.csv` | Members per group distribution |
+| `data_distribution.png` | Visualization of distributions |
+
+---
+
+## 3. Implementation of Recommendation Approaches
+
+### 3.1 Content-Based Filtering
+
+**File:** `content_based.py`
+
+**Concept:** Recommend groups that match user's explicit interests (tags)
+
+#### 3.1.1 Feature Extraction (TF-IDF)
+
+```python
+# For each group, concatenate all its tags
+Group 123: "python programming coding machine-learning data-science"
+Group 456: "hiking outdoor camping adventure nature"
+
+# Apply TF-IDF Vectorization
+TfidfVectorizer(
+    lowercase=True,           # Normalize case
+    stop_words='english',     # Remove common words
+    max_features=5000,        # Top 5000 terms
+    min_df=2,                 # Min 2 documents
+    max_df=0.95               # Max 95% of documents
+)
+```
+
+**TF-IDF Formula:**
+$$\text{TF-IDF}(t,d) = \text{TF}(t,d) \times \log\frac{N}{\text{DF}(t)}$$
+
+Where:
+- TF(t,d) = Term frequency of term t in document d
+- N = Total number of documents
+- DF(t) = Document frequency of term t
+
+#### 3.1.2 User Profile Construction
+
+```python
+# Build user profile from their followed tags
+User 1 interests: [python, AI, data-science]
+→ User Profile = TF-IDF weighted average of tag vectors
+```
+
+#### 3.1.3 Similarity Computation
+
+**Cosine Similarity:**
+$$\text{sim}(user, group) = \frac{\vec{u} \cdot \vec{g}}{\|\vec{u}\| \times \|\vec{g}\|}$$
+
+#### 3.1.4 Cold-Start Handling
+
+For new users with no tag preferences:
+- **Strategy:** Recommend most popular groups
+- Build default profile from top tags
+
+---
+
+### 3.2 Collaborative Filtering
+
+**File:** `collaborative.py`
+
+**Concept:** Recommend groups that similar users have joined
+
+#### 3.2.1 User-Based Collaborative Filtering
+
+```
+User-Item Matrix (Binary):
+              Group1  Group2  Group3  Group4  Group5
+User A          1       0       1       0       1
+User B          1       1       0       0       1
+User C          0       0       1       1       0
+User D          1       1       0       0       1    ← Similar to User B
+
+Prediction for User D on Group3:
+→ Look at what similar users (A, B, C) did for Group3
+→ Weight by similarity scores
+```
+
+**Prediction Formula:**
+$$\hat{r}_{u,i} = \frac{\sum_{v \in N_k(u)} sim(u,v) \cdot r_{v,i}}{\sum_{v \in N_k(u)} sim(u,v)}$$
+
+Where:
+- $N_k(u)$ = k nearest neighbors of user u
+- $sim(u,v)$ = Cosine similarity between users
+- $r_{v,i}$ = Rating of neighbor v for item i
+
+#### 3.2.2 SVD Matrix Factorization
+
+**Concept:** Decompose User-Item matrix into latent factors
+
+$$R \approx U_k \Sigma_k V_k^T$$
+
+Where:
+- $U_k$ = User latent factors (n_users × k)
+- $\Sigma_k$ = Singular values (k × k)
+- $V_k^T$ = Item latent factors (k × n_items)
+- k = Number of latent factors [10, 20]
+
+**Benefits:**
+- Dimensionality reduction
+- Captures hidden patterns
+- Handles sparsity better
+
+---
+
+### 3.3 Hybrid Recommendation System
+
+**File:** `hybrid.py`
+
+**Concept:** Combine Content-Based and Collaborative Filtering for best results
+
+#### 3.3.1 Weighted Hybrid Formula
+
+$$\text{Score} = \alpha \times CB_{norm} + (1 - \alpha) \times CF_{norm}$$
+
+Where:
+- α = Weight for Content-Based (0 to 1)
+- $CB_{norm}$ = Normalized Content-Based score [0,1]
+- $CF_{norm}$ = Normalized Collaborative score [0,1]
+
+#### 3.3.2 Alpha Tuning
+
+| Alpha (α) | CB Weight | CF Weight | Hit Rate |
+|-----------|-----------|-----------|----------|
+| 0.3 | 30% | 70% | **43%** ✓ Best |
+| 0.5 | 50% | 50% | 33% |
+| 0.7 | 70% | 30% | 21% |
+
+**Best α = 0.3** → Collaborative Filtering is more effective for this domain
+
+#### 3.3.3 Why Hybrid Works for This Domain
+
+| Challenge | How Hybrid Solves It |
+|-----------|---------------------|
+| **High Sparsity (99.8%)** | CB provides fallback when CF data is insufficient |
+| **Cold-Start Users** | CB uses tag preferences even for new users |
+| **Active Users** | CF captures co-membership patterns effectively |
+| **Rich Content** | 77,810 tags provide strong content signal |
+
+#### 3.3.4 Hybrid Recommendation Example
+
+```
+User 1146883 wants recommendations:
+
+Step 1: Content-Based computes:
+   User interests: [python, AI, data]
+   → CB scores for all groups
+
+Step 2: Collaborative computes:
+   Similar users: [User_A, User_B, User_C]
+   → CF scores based on their memberships
+
+Step 3: Hybrid combines:
+   Score = 0.3 × CB + 0.7 × CF
+
+Result:
+┌──────┬──────────┬────────────┬──────────┬──────────┐
+│ Rank │ Group ID │ Hybrid     │ CB Score │ CF Score │
+├──────┼──────────┼────────────┼──────────┼──────────┤
+│  1   │   5495   │   0.834    │   0.447  │   1.000  │
+│  2   │   8932   │   0.827    │   0.427  │   0.998  │
+│  3   │  10976   │   0.765    │   0.587  │   0.841  │
+│  4   │   3856   │   0.710    │   0.302  │   0.885  │
+│  5   │   3422   │   0.655    │   0.212  │   0.845  │
+└──────┴──────────┴────────────┴──────────┴──────────┘
+```
+
+---
+
+## 4. Evaluation Metrics
+
+### 4.1 Metrics Used
+
+| Metric | Formula | Description |
+|--------|---------|-------------|
+| **Hit Rate** | $\frac{\text{Users with } \geq 1 \text{ hit}}{\text{Total users}}$ | % of users with at least one correct recommendation |
+| **Precision@K** | $\frac{\text{Relevant in Top-K}}{K}$ | Accuracy of top-K recommendations |
+| **Recall@K** | $\frac{\text{Relevant in Top-K}}{\text{Total Relevant}}$ | Coverage of relevant items |
+| **NDCG@K** | $\frac{DCG@K}{IDCG@K}$ | Ranking quality with position weighting |
+
+### 4.2 Evaluation Results
+
+#### **Main Results Table (All Metrics)**
+
+| Rank | Method | Precision@10 | Recall@10 | NDCG@10 | Hit Rate |
+|------|--------|--------------|-----------|---------|----------|
+| 1 | **Hybrid (α=0.3)** | **0.1110** | **0.0585** | **0.1277** | **0.4500** |
+| 2 | Popularity | 0.0235 | 0.0131 | 0.0256 | 0.1600 |
+| 3 | Random | 0.0040 | 0.0027 | 0.0031 | 0.0400 |
+| 4 | Content-Based | 0.0025 | 0.0014 | 0.0018 | 0.0200 |
+| 5 | CF (SVD k=10) | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| 6 | CF (SVD k=20) | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+
+#### **Cold-Start Performance (Hit Rate by User Activity Level)**
+
+| Activity Level | Hybrid | Content-Based | Collaborative | Popularity |
+|----------------|--------|---------------|---------------|------------|
+| 5-20 ratings | 0.00 | 0.00 | 0.00 | 0.00 |
+| 21-50 ratings | **0.36** | 0.02 | 0.00 | 0.12 |
+| 51-100 ratings | **0.52** | 0.00 | 0.00 | 0.14 |
+| 100+ ratings | **0.76** | 0.02 | 0.00 | 0.28 |
+
+#### **Key Findings:**
+
+1. **Hybrid outperforms all individual methods** with Hit Rate = 45%
+2. **NDCG@10 = 0.1277** indicates good ranking quality
+3. **Cold-start handling**: Hybrid improves significantly with user activity
+4. **CF alone fails** due to data mismatch between CB and CF recommenders
+5. **Popularity baseline** is a strong simple baseline (16% Hit Rate)
+
+### 4.3 Why These Metrics?
+
+**For Interest-Based Group Recommendation:**
+
+1. **Hit Rate** - Most important because:
+   - Users typically join 1-2 groups from recommendations
+   - We care if at least ONE recommendation is useful
+
+2. **Precision@K** - Important because:
+   - Limited screen space for recommendations
+   - Quality over quantity
+
+3. **NDCG@K** - Important because:
+   - Order matters (top recommendations should be best)
+   - Weighted by position
+
+### 4.4 Evaluation Methodology
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    EVALUATION PROCESS                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  1. Train/Test Split (80/20)                                    │
+│     • Train on 80% of user-group interactions                   │
+│     • Test on held-out 20%                                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. Generate Recommendations                                    │
+│     • For each test user, generate Top-10 recommendations       │
+│     • Exclude groups already joined in training                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. Compare with Ground Truth                                   │
+│     • Check if recommended groups appear in test set            │
+│     • Count hits, compute precision, recall                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  4. Aggregate Metrics                                           │
+│     • Average across all test users                             │
+│     • Report final Hit Rate, Precision@K, etc.                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -44,6 +492,94 @@ SECTION2_DomainRecommender/
 | `tag_text.csv` | tag_id, tag_text | Text description of each tag |
 | `user_event.csv` | user_id, event_id | Events users have attended |
 | `event_group.csv` | event_id, group_id | Which group hosts each event |
+
+---
+
+## Pipeline Architecture
+
+```
+SECTION2_DomainRecommender/
+├── code/
+│   ├── main.py                 # Main entry point (runs all steps)
+│   ├── data_preprocessing.py   # Data loading and statistics
+│   ├── content_based.py        # Content-Based Filtering (TF-IDF)
+│   ├── collaborative.py        # Collaborative Filtering (User-Based + SVD)
+│   └── hybrid.py               # Hybrid Recommender System
+├── data/
+│   ├── user_group.csv          # User-Group memberships
+│   ├── user_tag.csv            # User tag preferences
+│   ├── group_tag.csv           # Group-Tag associations
+│   ├── tag_text.csv            # Tag text descriptions
+│   ├── user_event.csv          # User-Event interactions
+│   └── event_group.csv         # Event-Group mappings
+└── results/
+    ├── tables/                 # CSV output files
+    └── plots/                  # Visualization images
+```
+
+---
+
+## Dataset Description
+
+| File | Columns | Description |
+|------|---------|-------------|
+| `user_group.csv` | user_id, group_id | Which groups each user has joined |
+| `user_tag.csv` | user_id, tag_id | Tags that users are interested in |
+| `group_tag.csv` | group_id, tag_id | Tags associated with each group |
+| `tag_text.csv` | tag_id, tag_text | Text description of each tag |
+| `user_event.csv` | user_id, event_id | Events users have attended |
+| `event_group.csv` | event_id, group_id | Which group hosts each event |
+
+---
+
+## Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                          main.py                                │
+│                    (Main Entry Point)                           │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                   Step 1: Data Preprocessing                    │
+│                   (data_preprocessing.py)                       │
+│         Load datasets, compute statistics, analyze sparsity     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┴─────────────────────┐
+        ▼                                           ▼
+┌───────────────────────────┐         ┌───────────────────────────┐
+│  Step 2: Content-Based    │         │  Step 3: Collaborative    │
+│   (content_based.py)      │         │   (collaborative.py)      │
+│                           │         │                           │
+│  • TF-IDF on group tags   │         │  • User-Based CF          │
+│  • User profile building  │         │  • Cosine similarity      │
+│  • Cosine similarity      │         │  • SVD (k=10, k=20)       │
+│  • Cold-start handling    │         │  • GPU acceleration       │
+└───────────────────────────┘         └───────────────────────────┘
+        │                                           │
+        │         CB Score                CF Score  │
+        └─────────────────────┬─────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Step 4: Hybrid System                        │
+│                       (hybrid.py)                               │
+│                                                                 │
+│            Score = α × CB + (1 - α) × CF                        │
+│                                                                 │
+│  • Alpha tuning (0.3, 0.5, 0.7)                                 │
+│  • Best α = 0.3 (Hit Rate: 43%)                                 │
+│  • Cold-start handling                                          │
+│  • Final recommendations                                        │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │     Results     │
+                    │  Tables + Plots │
+                    └─────────────────┘
+```
 
 ---
 

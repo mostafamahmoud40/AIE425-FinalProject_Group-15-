@@ -1,0 +1,17 @@
+activity_level,method,hit_rate
+5-20 ratings,Content-Based,0.06
+21-50 ratings,Content-Based,0.16
+51-100 ratings,Content-Based,0.08
+100+ ratings,Content-Based,0.14
+5-20 ratings,Collaborative,0.26
+21-50 ratings,Collaborative,0.28
+51-100 ratings,Collaborative,0.5
+100+ ratings,Collaborative,0.7
+5-20 ratings,Hybrid,0.28
+21-50 ratings,Hybrid,0.38
+51-100 ratings,Hybrid,0.56
+100+ ratings,Hybrid,0.72
+5-20 ratings,Popularity,0.1
+21-50 ratings,Popularity,0.08
+51-100 ratings,Popularity,0.12
+100+ ratings,Popularity,0.36

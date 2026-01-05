@@ -1,11 +1,6 @@
 # ============================================================
-# Part 3: Collaborative Filtering for Interest-Based Groups
-# ============================================================
-# Domain: Interest-Based Group Formation Recommendation
-# - Implements User-based CF with cosine similarity
-# - Applies SVD matrix factorization (k=10, k=20)
-# - GPU acceleration for SVD only (using PyTorch if available)
-# Python Version: 3.11.14
+# Part 3: Collaborative Filtering
+# Domain: Interest-Based Group Formation (Meetup.com)
 # ============================================================
 
 import os
@@ -39,13 +34,11 @@ def save_table(df, filename):
     if len(float_cols) > 0:
         df2[float_cols] = df2[float_cols].round(4)
     df2.to_csv(f"{TABLE_DIR}/{filename}", index=False)
-    print(f"  \u2713 Saved: {TABLE_DIR}/{filename}")
 
 def save_plot(filename):
     """Save current plot"""
     plt.savefig(f"{PLOT_DIR}/{filename}", dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"  \u2713 Saved: {PLOT_DIR}/{filename}")
 
 # ============================================================
 # GPU CONFIGURATION - For SVD Only (using PyTorch)
@@ -66,17 +59,14 @@ try:
 except ImportError:
     print("✗ PyTorch not installed - Using CPU for SVD")
 
-# ============================================================
-# 8. COLLABORATIVE FILTERING INTEGRATION
-# ============================================================
-
 class CollaborativeFilteringRecommender:
     """
-    Collaborative Filtering Recommender System
+    8. Collaborative Filtering Integration
     
-    Approach:
-    - User-based CF with cosine similarity (8.1)
-    - SVD matrix factorization with k=10, k=20 (8.2)
+    8.1. Implement ONE CF approach: User-based CF with cosine similarity
+    8.2. Use matrix factorization from SECTION 1:
+         Apply SVD with k=10 and k=20 latent factors
+         Generate predictions for target users
     """
     
     def __init__(self, data_path='SECTION2_DomainRecommender/data/'):
@@ -183,7 +173,6 @@ class CollaborativeFilteringRecommender:
         # ============================================================
         # SAVE USER-ITEM MATRIX STATS
         # ============================================================
-        print("\nSAVING USER-ITEM MATRIX RESULTS...")
         
         # Save matrix statistics
         matrix_stats = pd.DataFrame({
@@ -208,13 +197,9 @@ class CollaborativeFilteringRecommender:
         
         return self.user_item_matrix
     
-    # =========================================================================
-    # 8.1 USER-BASED COLLABORATIVE FILTERING
-    # =========================================================================
-    
     def compute_user_similarity(self, metric='cosine'):
         """
-        8.1 Compute user-user similarity using cosine similarity
+        8.1. Implement User-based CF with cosine similarity
         """
         print("8.1 USER-BASED COLLABORATIVE FILTERING")
         print(f"Computing user similarity using {metric} similarity...")
@@ -242,13 +227,28 @@ class CollaborativeFilteringRecommender:
         # ============================================================
         # SAVE 8.1 USER SIMILARITY RESULTS
         # ============================================================
-        print("\nSAVING USER SIMILARITY RESULTS...")
         
-        # Save similarity statistics
-        sim_flat = self.user_similarity_matrix[np.triu_indices_from(self.user_similarity_matrix, k=1)]
+        # Compute similarity statistics efficiently (without creating huge array)
+        # Sample-based statistics to avoid memory issues
+        n_users = self.user_similarity_matrix.shape[0]
+        sample_size = min(5000, n_users)
+        sample_indices = np.random.choice(n_users, sample_size, replace=False)
+        
+        # Get statistics from sampled rows
+        sampled_sims = self.user_similarity_matrix[sample_indices]
+        non_zero_mask = sampled_sims > 0
+        non_zero_sims = sampled_sims[non_zero_mask]
+        
         sim_stats = pd.DataFrame({
-            'Metric': ['Mean Similarity', 'Max Similarity', 'Min Similarity', 'Std Similarity', 'Non-Zero Pairs'],
-            'Value': [np.mean(sim_flat), np.max(sim_flat), np.min(sim_flat), np.std(sim_flat), np.sum(sim_flat > 0)]
+            'Metric': ['Mean Similarity (sampled)', 'Max Similarity', 'Min Similarity (non-zero)', 
+                      'Std Similarity', 'Non-Zero Pairs (estimated)'],
+            'Value': [
+                np.mean(non_zero_sims) if len(non_zero_sims) > 0 else 0,
+                np.max(self.user_similarity_matrix),
+                np.min(non_zero_sims) if len(non_zero_sims) > 0 else 0,
+                np.std(non_zero_sims) if len(non_zero_sims) > 0 else 0,
+                int(np.sum(non_zero_mask) * (n_users / sample_size))  # Estimate
+            ]
         })
         save_table(sim_stats, "user_similarity_stats.csv")
         
@@ -267,19 +267,20 @@ class CollaborativeFilteringRecommender:
         pairs_df = pd.DataFrame(top_pairs)
         save_table(pairs_df, "top_similar_user_pairs.csv")
         
-        # Plot similarity distribution
+        # Plot similarity distribution (using sampled data)
         plt.figure(figsize=(8, 4))
-        plt.hist(sim_flat[sim_flat > 0], bins=50, edgecolor='black', alpha=0.7)
+        if len(non_zero_sims) > 0:
+            plt.hist(non_zero_sims, bins=50, edgecolor='black', alpha=0.7)
         plt.xlabel('Cosine Similarity')
         plt.ylabel('Frequency')
-        plt.title('Distribution of User-User Similarities (Non-Zero)')
+        plt.title('Distribution of User-User Similarities (Non-Zero, Sampled)')
         save_plot("user_similarity_distribution.png")
         
         return self.user_similarity_matrix
     
     def user_based_predict(self, user_id, group_id, k=20):
         """
-        Predict rating using weighted average of k nearest neighbors
+        8.1. Predict rating using weighted average of k nearest neighbors
         """
         if user_id not in self.user_id_to_idx:
             return 0.0
@@ -311,7 +312,7 @@ class CollaborativeFilteringRecommender:
     
     def user_based_recommend(self, user_id, top_n=10, k=20):
         """
-        Generate top-N recommendations using user-based CF
+        8.1. Generate top-N recommendations using user-based CF
         """
         if user_id not in self.user_id_to_idx:
             return []
@@ -334,63 +335,53 @@ class CollaborativeFilteringRecommender:
         
         return predictions[:top_n]
     
-    # =========================================================================
-    # 8.2 SVD MATRIX FACTORIZATION (GPU Accelerated)
-    # =========================================================================
-    
     def apply_svd(self, k_values=[10, 20]):
         """
-        8.2 Apply SVD with k latent factors
-        Uses GPU (PyTorch) if available, otherwise falls back to CPU (scipy)
+        8.2. Use matrix factorization from SECTION 1:
+             Apply SVD with k=10 and k=20 latent factors
+             Generate predictions for target users
         """
         print("8.2 SVD MATRIX FACTORIZATION")
         
         # Convert to float for SVD
         matrix = self.user_item_matrix.astype(float)
         
-        # Center the matrix (subtract mean)
-        user_ratings_mean = np.array(matrix.mean(axis=1)).flatten()
-        matrix_centered = matrix.toarray() - user_ratings_mean.reshape(-1, 1)
+        # Store mean for later prediction
+        self.user_ratings_mean = np.array(matrix.mean(axis=1)).flatten()
+        
+        # Store SVD components instead of full prediction matrix
+        self.svd_components = {}
         
         for k in k_values:
             print(f"\nApplying SVD with k={k} latent factors...")
             
-            if GPU_AVAILABLE and torch is not None:
-                # GPU-accelerated SVD using PyTorch
-                try:
-                    # Transfer to GPU
-                    matrix_gpu = torch.tensor(matrix_centered, dtype=torch.float32, device='cuda')
-                    
-                    # Full SVD on GPU
-                    U_gpu, sigma_gpu, Vt_gpu = torch.linalg.svd(matrix_gpu, full_matrices=False)
-                    
-                    # Truncate to k components and transfer back to CPU
-                    U = U_gpu[:, :k].cpu().numpy()
-                    sigma = sigma_gpu[:k].cpu().numpy()
-                    Vt = Vt_gpu[:k, :].cpu().numpy()
-                    
-                    # Free GPU memory
-                    del matrix_gpu, U_gpu, sigma_gpu, Vt_gpu
-                    torch.cuda.empty_cache()
-                except Exception as e:
-                    U, sigma, Vt = svds(csr_matrix(matrix_centered), k=k)
-            else:
-                # CPU SVD using scipy
-                U, sigma, Vt = svds(csr_matrix(matrix_centered), k=k)
+            # Always use scipy's svds - it's optimized for sparse matrices
+            try:
+                U, sigma, Vt = svds(matrix, k=k)
+                
+                # Sort by singular values (svds returns in ascending order)
+                idx = np.argsort(sigma)[::-1]
+                sigma = sigma[idx]
+                U = U[:, idx]
+                Vt = Vt[idx, :]
+                
+            except Exception as e:
+                print(f"  Warning: svds failed ({e}), skipping k={k}...")
+                continue
             
-            # Reconstruct the matrix
-            sigma_diag = np.diag(sigma)
-            predicted_ratings = np.dot(np.dot(U, sigma_diag), Vt)
-            predicted_ratings += user_ratings_mean.reshape(-1, 1)
+            # Store components (memory efficient - don't compute full matrix)
+            self.svd_components[k] = {
+                'U': U,
+                'sigma': sigma,
+                'Vt': Vt
+            }
             
-            self.svd_predictions[k] = predicted_ratings
-            
-            print(f"  U shape: {U.shape}")
+            # For backward compatibility, create a lazy prediction wrapper
+            self.svd_predictions[k] = None  # Will compute on-demand
             
             # ============================================================
             # SAVE 8.2 SVD RESULTS
             # ============================================================
-            print(f"  SAVING SVD k={k} RESULTS...")
             
             # Save singular values
             sv_df = pd.DataFrame({
@@ -400,18 +391,21 @@ class CollaborativeFilteringRecommender:
             })
             save_table(sv_df, f"svd_k{k}_singular_values.csv")
             
-            # Save sample predictions
+            # Save sample predictions (computed on-demand for just 100 users)
             sample_preds = []
             for i in range(min(100, len(self.user_ids))):
                 user_id = self.user_ids[i]
-                top_groups = np.argsort(predicted_ratings[i])[-10:][::-1]
-                for rank, group_idx in enumerate(top_groups):
-                    sample_preds.append({
-                        'user_id': user_id,
-                        'rank': rank + 1,
-                        'group_id': self.group_ids[group_idx],
-                        'predicted_score': predicted_ratings[i, group_idx]
-                    })
+                # Compute prediction for this user only
+                user_pred = self.svd_predict_user(i, k)
+                if user_pred is not None:
+                    top_groups = np.argsort(user_pred)[-10:][::-1]
+                    for rank, group_idx in enumerate(top_groups):
+                        sample_preds.append({
+                            'user_id': user_id,
+                            'rank': rank + 1,
+                            'group_id': self.group_ids[group_idx],
+                            'predicted_score': user_pred[group_idx]
+                        })
             
             preds_df = pd.DataFrame(sample_preds)
             save_table(preds_df, f"svd_k{k}_sample_predictions.csv")
@@ -419,9 +413,8 @@ class CollaborativeFilteringRecommender:
         # Plot SVD explained variance
         plt.figure(figsize=(8, 4))
         for k in k_values:
-            if k in self.svd_predictions:
-                # Recompute singular values for plotting
-                _, sigma, _ = svds(csr_matrix(matrix_centered), k=k)
+            if k in self.svd_components:
+                sigma = self.svd_components[k]['sigma']
                 variance = (sigma ** 2) / np.sum(sigma ** 2)
                 plt.plot(range(1, k+1), np.cumsum(variance[::-1]), marker='o', label=f'k={k}')
         
@@ -431,13 +424,33 @@ class CollaborativeFilteringRecommender:
         plt.legend()
         save_plot("svd_variance_explained.png")
         
-        return self.svd_predictions
+        return self.svd_components
+    
+    def svd_predict_user(self, user_idx, k=10):
+        """
+        8.2. Compute SVD predictions for a single user (memory efficient)
+        """
+        if k not in self.svd_components:
+            return None
+        
+        comp = self.svd_components[k]
+        U = comp['U']
+        sigma = comp['sigma']
+        Vt = comp['Vt']
+        
+        # Compute predictions for just this user
+        # user_predictions = U[user_idx] @ diag(sigma) @ Vt + mean
+        user_latent = U[user_idx] * sigma  # (k,)
+        user_predictions = user_latent @ Vt  # (n_groups,)
+        user_predictions += self.user_ratings_mean[user_idx]
+        
+        return user_predictions
     
     def svd_recommend(self, user_id, k=10, top_n=10):
         """
-        Generate recommendations using SVD predictions
+        8.2. Generate recommendations using SVD predictions
         """
-        if k not in self.svd_predictions:
+        if k not in self.svd_components:
             raise ValueError(f"SVD with k={k} not computed. Run apply_svd first.")
         
         if user_id not in self.user_id_to_idx:
@@ -445,8 +458,11 @@ class CollaborativeFilteringRecommender:
         
         user_idx = self.user_id_to_idx[user_id]
         
-        # Get predicted ratings for this user
-        user_predictions = self.svd_predictions[k][user_idx]
+        # Get predicted ratings for this user (computed on-demand)
+        user_predictions = self.svd_predict_user(user_idx, k)
+        
+        if user_predictions is None:
+            return []
         
         # Get groups user already joined
         joined_group_indices = set(self.user_item_matrix[user_idx].nonzero()[1])
@@ -465,13 +481,12 @@ class CollaborativeFilteringRecommender:
     
     def demonstrate_cf(self, sample_user_id):
         """
-        Demonstrate collaborative filtering recommendations
+        8.1 & 8.2. Demonstrate collaborative filtering recommendations
         """
         print(f"CF RECOMMENDATIONS FOR USER {sample_user_id}")
         
         # User-based recommendations
         print("\nUser-Based CF (k=20 neighbors):")
-        print("-" * 40)
         user_based_recs = self.user_based_recommend(sample_user_id, top_n=10, k=20)
         for rank, (group_id, score) in enumerate(user_based_recs, 1):
             print(f"  {rank:2d}. Group {group_id}: Score={score:.4f}")
@@ -479,7 +494,6 @@ class CollaborativeFilteringRecommender:
         # SVD recommendations
         for k in [10, 20]:
             print(f"\nSVD-Based CF (k={k} latent factors):")
-            print("-" * 40)
             svd_recs = self.svd_recommend(sample_user_id, k=k, top_n=10)
             for rank, (group_id, score) in enumerate(svd_recs, 1):
                 print(f"  {rank:2d}. Group {group_id}: Score={score:.4f}")

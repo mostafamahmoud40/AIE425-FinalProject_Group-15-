@@ -1,10 +1,6 @@
 # ============================================================
-# Part 1: Data Preprocessing for Interest-Based Groups
-# ============================================================
-# Domain: Interest-Based Group Formation Recommendation
-# - Load and explore dataset
-# - Analyze data statistics
-# - Prepare data for recommendation algorithms
+# Part 1: Data Preprocessing
+# Domain: Interest-Based Group Formation (Meetup.com)
 # ============================================================
 
 import os
@@ -39,7 +35,7 @@ def save_table(df, filename):
     if len(float_cols) > 0:
         df2[float_cols] = df2[float_cols].round(2)
     df2.to_csv(f"{TABLE_DIR}/{filename}", index=False)
-    print(f"  Saved: {TABLE_DIR}/{filename}")
+
 
 # ============================================================
 # 1. LOAD DATASET
@@ -147,7 +143,6 @@ def compute_statistics(datasets):
     # ============================================================
     # SAVE RESULTS
     # ============================================================
-    print("\nSAVING PREPROCESSING RESULTS...")
     
     # Save user statistics
     user_stats_df = user_counts.reset_index()
@@ -183,7 +178,6 @@ def compute_statistics(datasets):
     plt.tight_layout()
     plt.savefig(f"{PLOT_DIR}/data_distribution.png", dpi=150)
     plt.close()
-    print(f"  ✓ Saved: {PLOT_DIR}/data_distribution.png")
     
     return {
         'n_users': n_users,
@@ -198,7 +192,6 @@ def compute_statistics(datasets):
 
 if __name__ == "__main__":
     print("SECTION 2: DATA PREPROCESSING")
-    print("=" * 60)
     
     # Load datasets
     datasets = load_datasets()

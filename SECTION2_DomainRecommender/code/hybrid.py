@@ -1,12 +1,6 @@
 # ============================================================
-# Part 3: Hybrid Recommender System for Interest-Based Groups
-# ============================================================
-# Implements:
-# - Section 9: Weighted Hybrid (α × CB + (1-α) × CF)
-# - Section 10: Cold-Start Handling
-# - Section 11: Baseline Comparison
-# - Section 12: Results Analysis
-# Python Version: 3.11.14
+# Part 3: Hybrid Recommender System
+# Domain: Interest-Based Group Formation (Meetup.com)
 # ============================================================
 
 import os
@@ -42,24 +36,22 @@ def save_table(df, filename):
     if len(float_cols) > 0:
         df2[float_cols] = df2[float_cols].round(4)
     df2.to_csv(f"{TABLE_DIR}/{filename}", index=False)
-    print(f"  Saved: {TABLE_DIR}/{filename}")
 
 def save_plot(filename):
     """Save current plot"""
     plt.savefig(f"{PLOT_DIR}/{filename}", dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"  Saved: {PLOT_DIR}/{filename}")
 
 # ============================================================
-# 9. HYBRID RECOMMENDATION SYSTEM
+# 9. Hybrid Recommendation Strategy
 # ============================================================
 
 class HybridRecommender:
     """
-    Hybrid Recommender System combining Content-Based and Collaborative Filtering
-    
-    Approach: Weighted Hybrid
-    Score = α × Content-Based + (1 − α) × Collaborative Filtering
+    9.1. Implement Weighted Hybrid (Option A):
+         Score = α × CB + (1 − α) × CF
+         Test α = 0.2, 0.3, 0.4, 0.5, 0.6, 0.7
+         Select best α based on validation performance
     """
     
     def __init__(self, data_path='SECTION2_DomainRecommender/data/', sample_size=10000, min_group_members=50):
@@ -217,11 +209,13 @@ class HybridRecommender:
         
         user_idx = self.cf_recommender.user_id_to_idx[user_id]
         
-        if method == 'svd' and k in self.cf_recommender.svd_predictions:
-            predictions = self.cf_recommender.svd_predictions[k][user_idx]
-            for group_idx, score in enumerate(predictions):
-                group_id = self.cf_recommender.idx_to_group_id[group_idx]
-                scores[group_id] = max(0, score)  # Ensure non-negative
+        if method == 'svd' and k in self.cf_recommender.svd_components:
+            # Use on-demand prediction (memory efficient)
+            predictions = self.cf_recommender.svd_predict_user(user_idx, k)
+            if predictions is not None:
+                for group_idx, score in enumerate(predictions):
+                    group_id = self.cf_recommender.idx_to_group_id[group_idx]
+                    scores[group_id] = max(0, score)  # Ensure non-negative
         elif method == 'user_based':
             # Get user-based predictions
             for group_id in self.common_groups:
@@ -233,8 +227,8 @@ class HybridRecommender:
     
     def hybrid_recommend(self, user_id, alpha=0.5, top_n=10, cf_method='svd', k=10):
         """
-        9.1 Weighted Hybrid Recommendation
-        Score = α × CB + (1 − α) × CF
+        9.1. Weighted Hybrid Recommendation
+             Score = α × CB + (1 − α) × CF
         """
         # Get scores from both systems
         cb_scores = self.get_cb_scores(user_id)
@@ -272,7 +266,8 @@ class HybridRecommender:
     
     def find_best_alpha(self, alpha_values=[0.3, 0.5, 0.7], n_users=100):
         """
-        9.1 Test different alpha values and select best
+        9.1. Test α = 0.3, 0.5, 0.7
+             Select best α based on validation performance
         """
         print("9.1 TESTING ALPHA VALUES FOR WEIGHTED HYBRID")
         print("Formula: Score = α × Content-Based + (1 − α) × Collaborative")
@@ -317,7 +312,6 @@ class HybridRecommender:
         # ============================================================
         # SAVE 9.1 ALPHA TUNING RESULTS
         # ============================================================
-        print("\nSAVING ALPHA TUNING RESULTS...")
         
         alpha_results = pd.DataFrame({
             'alpha': alpha_values,
@@ -354,7 +348,9 @@ class HybridRecommender:
         return best_alpha
     
     def justify_hybrid_approach(self):
-        """9.2 Justify hybrid approach choice"""
+        """
+        9.2. Justify choice based on domain characteristics
+        """
         print("9.2 HYBRID APPROACH JUSTIFICATION")
         
         print("""
@@ -394,12 +390,15 @@ WHY NOT OTHER APPROACHES:
         """)
     
     # =========================================================================
-    # 10. COLD-START HANDLING
+    # 10. Cold-Start Handling
     # =========================================================================
     
     def evaluate_cold_start(self):
         """
-        10.1 Evaluate cold-start handling for users with different activity levels
+        10.1. Demonstrate cold-start solution:
+              - Test on users with few ratings (5-20, 21-50, 51-100, 100+)
+              - Show how hybrid approach handles limited data
+              - Compare with popularity baseline
         """
         print("10. COLD-START HANDLING EVALUATION")
         
@@ -488,7 +487,6 @@ WHY NOT OTHER APPROACHES:
         # ============================================================
         # SAVE 10. COLD-START RESULTS
         # ============================================================
-        print("\nSAVING COLD-START EVALUATION RESULTS...")
         
         cold_start_df = pd.DataFrame([
             {'activity_level': label, 'method': 'Content-Based', 'hit_rate': m['cb']}
@@ -530,7 +528,7 @@ WHY NOT OTHER APPROACHES:
         return results
     
     # =========================================================================
-    # 11. BASELINE COMPARISON
+    # 11. Baseline Comparison
     # =========================================================================
     
     def random_recommend(self, user_id, top_n=10):
@@ -554,9 +552,27 @@ WHY NOT OTHER APPROACHES:
                     break
         return recs
     
+    def compute_ndcg(self, recommended_items, actual_items, k=10):
+        """
+        Compute Normalized Discounted Cumulative Gain (NDCG@K)
+        """
+        # DCG
+        dcg = 0.0
+        for i, item in enumerate(recommended_items[:k]):
+            if item in actual_items:
+                dcg += 1 / np.log2(i + 2)  # i+2 because positions start at 1
+        
+        # Ideal DCG (if all relevant items were at top)
+        n_relevant = min(len(actual_items), k)
+        idcg = sum(1 / np.log2(i + 2) for i in range(n_relevant))
+        
+        return dcg / idcg if idcg > 0 else 0.0
+    
     def evaluate_all_methods(self, n_users=200):
         """
-        11.1 Compare all methods
+        11.1. Compare hybrid system against:
+              Random recommendations, most popular items, pure content-based
+        11.2. Create comparison table showing all metrics (Precision@K, Recall@K, NDCG@K, Hit Rate)
         """
         print("11. BASELINE COMPARISON")
         
@@ -569,12 +585,12 @@ WHY NOT OTHER APPROACHES:
         print(f"\nEvaluating on {len(test_users)} users with Top-10...")
         
         results = {
-            'Random': {'precision': [], 'recall': [], 'hits': 0},
-            'Popularity': {'precision': [], 'recall': [], 'hits': 0},
-            'Content-Based': {'precision': [], 'recall': [], 'hits': 0},
-            'CF (SVD k=10)': {'precision': [], 'recall': [], 'hits': 0},
-            'CF (SVD k=20)': {'precision': [], 'recall': [], 'hits': 0},
-            f'Hybrid (α={self.best_alpha})': {'precision': [], 'recall': [], 'hits': 0},
+            'Random': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
+            'Popularity': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
+            'Content-Based': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
+            'CF (SVD k=10)': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
+            'CF (SVD k=20)': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
+            f'Hybrid (α={self.best_alpha})': {'precision': [], 'recall': [], 'ndcg': [], 'hits': 0},
         }
         
         for idx, user_id in enumerate(test_users):
@@ -594,52 +610,56 @@ WHY NOT OTHER APPROACHES:
             }
             
             for method_name, recs in methods_recs.items():
-                rec_groups = set([r[0] for r in recs])
+                rec_items = [r[0] for r in recs]
+                rec_groups = set(rec_items)
                 hits = len(rec_groups & actual)
                 
                 precision = hits / len(rec_groups) if rec_groups else 0
                 recall = hits / n_actual if n_actual > 0 else 0
+                ndcg = self.compute_ndcg(rec_items, actual, k=10)
                 
                 results[method_name]['precision'].append(precision)
                 results[method_name]['recall'].append(recall)
+                results[method_name]['ndcg'].append(ndcg)
                 if hits > 0:
                     results[method_name]['hits'] += 1
         
         # Print comparison table
-        print("11.2 COMPARISON TABLE")
+        print("\n11.2 EVALUATION RESULTS TABLE")
         
-        print(f"\n{'Method':<25} {'Precision@10':<15} {'Recall@10':<15} {'Hit Rate':<15}")
-        print("-" * 70)
+        print(f"\n{'Method':<25} {'Precision@10':<14} {'Recall@10':<14} {'NDCG@10':<14} {'Hit Rate':<14}")
         
         final_results = {}
         for method_name, data in results.items():
             avg_precision = np.mean(data['precision'])
             avg_recall = np.mean(data['recall'])
+            avg_ndcg = np.mean(data['ndcg'])
             hit_rate = data['hits'] / len(test_users)
             
             final_results[method_name] = {
                 'precision': avg_precision,
                 'recall': avg_recall,
+                'ndcg': avg_ndcg,
                 'hit_rate': hit_rate
             }
             
-            print(f"{method_name:<25} {avg_precision:<15.4f} {avg_recall:<15.4f} {hit_rate:<15.4f}")
+            print(f"{method_name:<25} {avg_precision:<14.4f} {avg_recall:<14.4f} {avg_ndcg:<14.4f} {hit_rate:<14.4f}")
         
         # ============================================================
         # SAVE 11. BASELINE COMPARISON RESULTS
         # ============================================================
-        print("\nSAVING BASELINE COMPARISON RESULTS...")
         
         comparison_df = pd.DataFrame([
-            {'method': name, 'precision_at_10': m['precision'], 'recall_at_10': m['recall'], 'hit_rate': m['hit_rate']}
+            {'method': name, 'precision_at_10': m['precision'], 'recall_at_10': m['recall'], 
+             'ndcg_at_10': m['ndcg'], 'hit_rate': m['hit_rate']}
             for name, m in final_results.items()
         ])
         save_table(comparison_df, "baseline_comparison.csv")
         
         # Plot comparison
-        plt.figure(figsize=(12, 5))
+        plt.figure(figsize=(14, 5))
         
-        plt.subplot(1, 2, 1)
+        plt.subplot(1, 3, 1)
         methods = list(final_results.keys())
         hit_rates = [final_results[m]['hit_rate'] for m in methods]
         colors = plt.cm.viridis(np.linspace(0.2, 0.8, len(methods)))
@@ -649,7 +669,7 @@ WHY NOT OTHER APPROACHES:
         for bar, hr in zip(bars, hit_rates):
             plt.text(hr + 0.005, bar.get_y() + bar.get_height()/2, f'{hr:.3f}', va='center')
         
-        plt.subplot(1, 2, 2)
+        plt.subplot(1, 3, 2)
         precisions = [final_results[m]['precision'] for m in methods]
         recalls = [final_results[m]['recall'] for m in methods]
         x = np.arange(len(methods))
@@ -661,24 +681,35 @@ WHY NOT OTHER APPROACHES:
         plt.title('Method Comparison: Precision & Recall')
         plt.legend()
         
+        plt.subplot(1, 3, 3)
+        ndcgs = [final_results[m]['ndcg'] for m in methods]
+        bars = plt.barh(methods, ndcgs, color='forestgreen', edgecolor='black')
+        plt.xlabel('NDCG@10')
+        plt.title('Method Comparison: NDCG@10')
+        for bar, n in zip(bars, ndcgs):
+            plt.text(n + 0.005, bar.get_y() + bar.get_height()/2, f'{n:.3f}', va='center')
+        
         plt.tight_layout()
         save_plot("baseline_comparison.png")
         
         return final_results
     
     # =========================================================================
-    # 12. RESULTS ANALYSIS
+    # 12. Results Analysis
+    #     - Which approach performed best?
+    #     - How well does hybrid handle cold-start?
     # =========================================================================
     
     def analyze_results(self, comparison_results, cold_start_results):
         """
-        12. Analyze and summarize results
+        12. Results Analysis
+            - Which approach performed best?
+            - How well does hybrid handle cold-start?
         """
-        print("12. RESULTS ANALYSIS")
+        print("\n12. RESULTS ANALYSIS")
         
         # Question 1: Which approach performed best?
         print("\nQUESTION 1: Which approach performed best?")
-        print("-" * 45)
         
         # Sort by hit rate
         sorted_methods = sorted(
@@ -694,18 +725,17 @@ WHY NOT OTHER APPROACHES:
         print(f"  Hit Rate: {best_hr:.4f}")
         print(f"  Precision@10: {sorted_methods[0][1]['precision']:.4f}")
         print(f"  Recall@10: {sorted_methods[0][1]['recall']:.4f}")
+        print(f"  NDCG@10: {sorted_methods[0][1]['ndcg']:.4f}")
         
         print("\nRanking by Hit Rate:")
         for rank, (method, metrics) in enumerate(sorted_methods, 1):
-            print(f"  {rank}. {method}: {metrics['hit_rate']:.4f}")
+            print(f"  {rank}. {method}: Hit Rate={metrics['hit_rate']:.4f}, NDCG={metrics['ndcg']:.4f}")
         
         # Question 2: How well does hybrid handle cold-start?
         print("\n\nQUESTION 2: How well does hybrid handle cold-start?")
-        print("-" * 50)
         
         print("\nPerformance by user activity level:")
         print(f"{'Activity':<15} {'Hybrid':<12} {'CB':<12} {'CF':<12} {'Popularity':<12}")
-        print("-" * 60)
         
         for activity, metrics in cold_start_results.items():
             print(f"{activity:<15} {metrics['hybrid']:<12.4f} {metrics['cb']:<12.4f} "
@@ -735,12 +765,11 @@ HYBRID ADVANTAGE:
         # ============================================================
         # SAVE 12. FINAL ANALYSIS RESULTS
         # ============================================================
-        print("\nSAVING FINAL ANALYSIS RESULTS...")
         
-        # Save method ranking
+        # Save method ranking with all metrics
         ranking_df = pd.DataFrame([
-            {'rank': rank, 'method': method, 'hit_rate': metrics['hit_rate'], 
-             'precision': metrics['precision'], 'recall': metrics['recall']}
+            {'rank': rank, 'method': method, 'precision_at_10': metrics['precision'], 
+             'recall_at_10': metrics['recall'], 'ndcg_at_10': metrics['ndcg'], 'hit_rate': metrics['hit_rate']}
             for rank, (method, metrics) in enumerate(sorted_methods, 1)
         ])
         save_table(ranking_df, "final_method_ranking.csv")
@@ -792,7 +821,6 @@ def main():
     
     print(f"\nTop-10 Hybrid (α={hybrid.best_alpha}):")
     print(f"{'Rank':<6} {'Group':<12} {'Hybrid':<10} {'CB':<10} {'CF':<10}")
-    print("-" * 50)
     for rank, (group_id, hybrid_score, cb_score, cf_score) in enumerate(recs, 1):
         print(f"{rank:<6} {group_id:<12} {hybrid_score:<10.4f} {cb_score:<10.4f} {cf_score:<10.4f}")
     

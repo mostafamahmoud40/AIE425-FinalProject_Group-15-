@@ -1,6 +1,6 @@
 Metric,Value
-Mean Similarity,0.0233
-Max Similarity,1.0
-Min Similarity,0.0
-Std Similarity,0.0724
-Non-Zero Pairs,27162880.0
+Mean Similarity (sampled),0.0705
+Max Similarity,0.913
+Min Similarity (non-zero),0.0041
+Std Similarity,0.052
+Non-Zero Pairs (estimated),21691948.0

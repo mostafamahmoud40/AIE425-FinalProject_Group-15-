@@ -1,0 +1,6 @@
+Finding,Value
+Best Method,CF (SVD k=20)
+Best Hit Rate,0.4967
+Best Precision@10,0.0977
+Best Recall@10,0.0988
+Hybrid Alpha Used,0.3

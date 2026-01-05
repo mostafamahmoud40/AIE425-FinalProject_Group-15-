@@ -1,10 +1,6 @@
 # ============================================================
-# Part 2: Content-Based Filtering for Interest-Based Groups
-# ============================================================
-# Domain: Interest-Based Group Formation Recommendation
-# - Items: Groups (characterized by tags)
-# - Users: Users (with tag preferences)
-# - Content Features: Tags (text descriptions of interests)
+# Part 2: Content-Based Recommendation
+# Domain: Interest-Based Group Formation (Meetup.com)
 # ============================================================
 
 import os
@@ -37,13 +33,11 @@ def save_table(df, filename):
     if len(float_cols) > 0:
         df2[float_cols] = df2[float_cols].round(4)
     df2.to_csv(f"{TABLE_DIR}/{filename}", index=False)
-    print(f"  \u2713 Saved: {TABLE_DIR}/{filename}")
 
 def save_plot(filename):
     """Save current plot"""
     plt.savefig(f"{PLOT_DIR}/{filename}", dpi=150, bbox_inches='tight')
     plt.close()
-    print(f"  \u2713 Saved: {PLOT_DIR}/{filename}")
 
 # ============================================================
 # 3. FEATURE EXTRACTION AND VECTOR SPACE MODEL
@@ -152,16 +146,10 @@ class ContentBasedRecommender:
         print(f"Final groups: {len(active_groups):,}")
         print(f"Final interactions: {len(self.user_group_df):,}")
         
-    # =========================================================================
-    # 3.1 TEXT FEATURE EXTRACTION (TF-IDF)
-    # =========================================================================
-    
     def create_group_text_features(self):
         """
-        3.1 TF-IDF Feature Extraction
-        
-        For each group, concatenate all its tag texts to create a document.
-        Apply TF-IDF vectorization with basic preprocessing.
+        3.1. Text feature extraction: TF-IDF vectors with basic preprocessing
+             (tokenization, stop-word removal)
         """
         print("3.1 TF-IDF FEATURE EXTRACTION")
         
@@ -211,7 +199,6 @@ class ContentBasedRecommender:
         # ============================================================
         # SAVE STEP 3.1 RESULTS
         # ============================================================
-        print("\nSAVING TF-IDF RESULTS...")
         
         # Save group documents
         save_table(group_documents, "group_tag_documents.csv")
@@ -251,13 +238,10 @@ class ContentBasedRecommender:
         
         return self.item_feature_matrix
     
-    # =========================================================================
-    # 3.2 & 3.3 ITEM-FEATURE MATRIX DOCUMENTATION
-    # =========================================================================
-    
     def document_feature_selection(self):
         """
-        3.2 & 3.3 Document feature selection and item-feature matrix
+        3.2. Additional features: Categorical features (Tags)
+        3.3. Create item-feature matrix and document feature selection
         """
         print("3.2 & 3.3 FEATURE SELECTION DOCUMENTATION")
         
@@ -294,16 +278,9 @@ FEATURE SELECTION APPROACH:
         print(f"  Sparsity: {sparsity:.2f}%")
         print(f"  Memory: {matrix.data.nbytes / 1024:.2f} KB")
         
-    # =========================================================================
-    # 4. USER PROFILE CONSTRUCTION
-    # =========================================================================
-    
     def build_user_profiles(self, method='weighted_average'):
         """
-        4.1 Build User Profiles
-        
-        Method: Weighted average of tag features
-        - Weight by number of times user interacts with each tag
+        4.1. Build user profiles: Weighted average of rated item features
         """
         print("4. USER PROFILE CONSTRUCTION")
         
@@ -361,7 +338,6 @@ FEATURE SELECTION APPROACH:
         # ============================================================
         # SAVE STEP 4.1 RESULTS
         # ============================================================
-        print("\nSAVING USER PROFILE RESULTS...")
         
         # Save user profile statistics
         profile_stats = []
@@ -398,10 +374,7 @@ FEATURE SELECTION APPROACH:
     
     def handle_cold_start(self, strategy='popular_items'):
         """
-        4.2 Handle Cold-Start Users
-        
-        Strategy: Use popular item (group) features
-        - Average profile of most popular groups
+        4.2. Handle cold-start users: Use popular item features
         """
         print("4.2 COLD-START HANDLING")
         print(f"Strategy: {strategy}")
@@ -429,15 +402,9 @@ FEATURE SELECTION APPROACH:
         
         return self.cold_start_profile
     
-    # =========================================================================
-    # 5. SIMILARITY COMPUTATION AND RECOMMENDATION
-    # =========================================================================
-    
     def compute_user_item_similarity(self, user_id):
         """
-        5.1 Compute Similarity
-        
-        Cosine similarity between user profile and all items (groups)
+        5.1. Compute similarity: Cosine similarity between user profiles and items
         """
         # Get user profile
         if user_id in self.user_profiles:
@@ -453,11 +420,7 @@ FEATURE SELECTION APPROACH:
     
     def generate_recommendations(self, user_id, top_n=10, exclude_joined=True):
         """
-        5.2 Generate Top-N Recommendations
-        
-        - Rank items by similarity score
-        - Remove already-joined groups
-        - Return top-N recommendations
+        5.2. Generate top-N recommendations: Top-10 and Top-20
         """
         # Compute similarities
         similarities = self.compute_user_item_similarity(user_id)
@@ -486,14 +449,13 @@ FEATURE SELECTION APPROACH:
     
     def recommend_top_n(self, user_id):
         """
-        5.2 Generate Top-10 and Top-20 Recommendations
+        5.2. Generate Top-10 and Top-20 Recommendations
         """
         print(f"5.1 SIMILARITY FOR USER {user_id}")
         
         # Top-10
         top_10 = self.generate_recommendations(user_id, top_n=10)
         print("\nTop-10 Recommendations:")
-        print("-" * 40)
         for rank, (group_id, score) in enumerate(top_10, 1):
             # Get group tags
             group_tags = self.group_tag_df[
@@ -505,21 +467,46 @@ FEATURE SELECTION APPROACH:
         # Top-20
         top_20 = self.generate_recommendations(user_id, top_n=20)
         print("\nTop-20 Recommendations:")
-        print("-" * 40)
         for rank, (group_id, score) in enumerate(top_20, 1):
             print(f"  {rank:2d}. Group {group_id}: Score={score:.4f}")
         
+        # ============================================================
+        # SAVE TOP-10 AND TOP-20 RECOMMENDATIONS
+        # ============================================================
+        
+        # Save Top-10 with tags
+        top10_data = []
+        for rank, (group_id, score) in enumerate(top_10, 1):
+            group_tags = self.group_tag_df[
+                self.group_tag_df['group_id'] == group_id
+            ].merge(self.tag_text_df, on='tag_id')['tag_text'].head(5).tolist()
+            top10_data.append({
+                'rank': rank,
+                'group_id': group_id,
+                'score': score,
+                'tags': ', '.join(group_tags) if group_tags else 'N/A'
+            })
+        save_table(pd.DataFrame(top10_data), f"top10_recommendations_user_{user_id}.csv")
+        
+        # Save Top-20
+        top20_data = []
+        for rank, (group_id, score) in enumerate(top_20, 1):
+            group_tags = self.group_tag_df[
+                self.group_tag_df['group_id'] == group_id
+            ].merge(self.tag_text_df, on='tag_id')['tag_text'].head(5).tolist()
+            top20_data.append({
+                'rank': rank,
+                'group_id': group_id,
+                'score': score,
+                'tags': ', '.join(group_tags) if group_tags else 'N/A'
+            })
+        save_table(pd.DataFrame(top20_data), f"top20_recommendations_user_{user_id}.csv")
+        
         return top_10, top_20
-    
-    # =========================================================================
-    # 6. k-NEAREST NEIGHBORS (k-NN)
-    # =========================================================================
     
     def build_item_knn(self, k_values=[10, 20]):
         """
-        6.1 Implement Item-Based k-NN
-        
-        Find k most similar items (groups) for each item
+        6.1. Implement item-based k-NN: k=10, k=20
         """
         print("6. k-NEAREST NEIGHBORS IMPLEMENTATION")
         
@@ -554,7 +541,6 @@ FEATURE SELECTION APPROACH:
         # ============================================================
         # SAVE STEP 6.1 RESULTS
         # ============================================================
-        print("\nSAVING K-NN RESULTS...")
         
         for k in k_values:
             # Save sample neighbors for first 100 groups
@@ -578,9 +564,7 @@ FEATURE SELECTION APPROACH:
     
     def knn_predict_rating(self, user_id, group_id, k=10):
         """
-        6.1 Predict rating using weighted average of similar items
-        
-        For implicit feedback: predict preference score
+        6.1. Predict rating using weighted average of similar items
         """
         if k not in self.item_similarities:
             raise ValueError(f"k={k} not available. Run build_item_knn first.")
@@ -621,7 +605,7 @@ FEATURE SELECTION APPROACH:
     
     def knn_recommend(self, user_id, k=10, top_n=10):
         """
-        6.1 Generate recommendations using k-NN
+        6.1. Generate recommendations using k-NN
         """
         # Get groups user already joined
         joined_groups = set(
@@ -644,7 +628,7 @@ FEATURE SELECTION APPROACH:
     
     def compare_approaches(self, user_id):
         """
-        6.2 Compare Content-Based and k-NN Approaches
+        6.2. Compare content-based and k-NN approaches
         """
         print(f"6.2 COMPARISON: CONTENT-BASED vs k-NN (User {user_id})")
         
@@ -660,7 +644,6 @@ FEATURE SELECTION APPROACH:
         print("\n{:<6} {:<20} {:<20} {:<20}".format(
             "Rank", "Content-Based", "k-NN (k=10)", "k-NN (k=20)"
         ))
-        print("-" * 70)
         
         for i in range(10):
             cb = f"G{cb_recs[i][0]}({cb_recs[i][1]:.3f})" if i < len(cb_recs) else "-"
@@ -678,23 +661,50 @@ FEATURE SELECTION APPROACH:
         print(f"  Content-Based ∩ k-NN(k=20): {len(cb_set & knn20_set)} items")
         print(f"  k-NN(k=10) ∩ k-NN(k=20): {len(knn10_set & knn20_set)} items")
         
+        # ============================================================
+        # SAVE COMPARISON TABLE
+        # ============================================================
+        
+        comparison_data = []
+        for i in range(10):
+            comparison_data.append({
+                'rank': i + 1,
+                'cb_group_id': cb_recs[i][0] if i < len(cb_recs) else None,
+                'cb_score': cb_recs[i][1] if i < len(cb_recs) else None,
+                'knn10_group_id': knn_recs_10[i][0] if i < len(knn_recs_10) else None,
+                'knn10_score': knn_recs_10[i][1] if i < len(knn_recs_10) else None,
+                'knn20_group_id': knn_recs_20[i][0] if i < len(knn_recs_20) else None,
+                'knn20_score': knn_recs_20[i][1] if i < len(knn_recs_20) else None
+            })
+        
+        comparison_df = pd.DataFrame(comparison_data)
+        save_table(comparison_df, f"cb_vs_knn_comparison_user_{user_id}.csv")
+        
+        # Save overlap analysis
+        overlap_df = pd.DataFrame({
+            'comparison': ['CB ∩ k-NN(k=10)', 'CB ∩ k-NN(k=20)', 'k-NN(k=10) ∩ k-NN(k=20)'],
+            'overlap_count': [len(cb_set & knn10_set), len(cb_set & knn20_set), len(knn10_set & knn20_set)]
+        })
+        save_table(overlap_df, f"cb_knn_overlap_analysis_user_{user_id}.csv")
+        
         return cb_recs, knn_recs_10, knn_recs_20
 
 
-# 7. COMPLETE NUMERICAL EXAMPLE
-
 def run_numerical_example():
     """
-    7.1 Step-by-step numerical example with sample data
+    7.1. Complete Numerical Example - Step-by-step showing:
+         - Sample item descriptions
+         - TF-IDF calculation for 3-5 sample items
+         - User profile from 3-5 ratings
+         - Similarity scores
+         - Top-5 recommendations with scores
     """
     print("7. COMPLETE NUMERICAL EXAMPLE")
     
     # -------------------------------------------------------------------------
     # Step 1: Sample Item Descriptions (Groups with Tags)
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 1: SAMPLE ITEM DESCRIPTIONS")
-    print("-" * 70)
+    print("\nSTEP 1: SAMPLE ITEM DESCRIPTIONS")
     
     sample_groups = {
         'G1': "python programming coding data science machine learning",
@@ -711,9 +721,7 @@ def run_numerical_example():
     # -------------------------------------------------------------------------
     # Step 2: TF-IDF Calculation
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 2: TF-IDF CALCULATION")
-    print("-" * 70)
+    print("\nSTEP 2: TF-IDF CALCULATION")
     
     # Create TF-IDF vectorizer
     tfidf = TfidfVectorizer(lowercase=True, stop_words='english')
@@ -741,9 +749,7 @@ def run_numerical_example():
     # -------------------------------------------------------------------------
     # Step 3: User Profile from Ratings
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 3: USER PROFILE CONSTRUCTION")
-    print("-" * 70)
+    print("\nSTEP 3: USER PROFILE CONSTRUCTION")
     
     # User's ratings (implicit: joined groups)
     user_ratings = {
@@ -786,9 +792,7 @@ def run_numerical_example():
     # -------------------------------------------------------------------------
     # Step 4: Similarity Computation
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 4: SIMILARITY COMPUTATION (COSINE SIMILARITY)")
-    print("-" * 70)
+    print("\nSTEP 4: SIMILARITY COMPUTATION (COSINE SIMILARITY)")
     
     # Compute cosine similarity between user profile and all items
     similarities = cosine_similarity(
@@ -807,9 +811,7 @@ def run_numerical_example():
     # -------------------------------------------------------------------------
     # Step 5: Top-5 Recommendations
     # -------------------------------------------------------------------------
-    print("\n" + "-" * 70)
-    print("STEP 5: TOP-5 RECOMMENDATIONS")
-    print("-" * 70)
+    print("\nSTEP 5: TOP-5 RECOMMENDATIONS")
     
     # Exclude already-rated items
     recommendations = []
@@ -821,7 +823,6 @@ def run_numerical_example():
     recommendations.sort(key=lambda x: x[1], reverse=True)
     
     print("\nFinal Recommendations (excluding rated items):")
-    print("-" * 50)
     for rank, (group_id, score) in enumerate(recommendations[:5], 1):
         print(f"  Rank {rank}: {group_id}")
         print(f"           Score: {score:.4f}")
