@@ -5,7 +5,7 @@
 
 ---
 
-## 1️⃣ Project Overview
+## 1. Project Overview
 
 | Attribute | Value |
 |-----------|-------|
@@ -16,7 +16,7 @@
 
 ---
 
-## 2️⃣ Problem Description
+## 2. Problem Description
 
 ### The Problem We're Solving
 Users on platforms like Meetup.com struggle to discover relevant interest groups among thousands of options. Manual browsing is time-consuming and often leads to missing groups that match their interests.
@@ -35,7 +35,7 @@ Users on platforms like Meetup.com struggle to discover relevant interest groups
 
 ---
 
-## 3️⃣ Dataset Description
+## 3. Dataset Description
 
 ### Data Source
 **Meetup.com Interest Groups Dataset** - Public dataset containing user-group interactions and tag information.
@@ -66,7 +66,7 @@ Users on platforms like Meetup.com struggle to discover relevant interest groups
 
 ---
 
-## 4️⃣ System Architecture
+## 4. System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -132,7 +132,7 @@ Users on platforms like Meetup.com struggle to discover relevant interest groups
 
 ---
 
-## 5️⃣ Content-Based Approach
+## 5. Content-Based Approach
 
 ### Feature Extraction: TF-IDF
 
@@ -184,7 +184,7 @@ Top-5 Content-Based Recommendations:
 
 ---
 
-## 6️⃣ Collaborative Filtering
+## 6. Collaborative Filtering
 
 ### Method: User-Based CF + SVD Matrix Factorization
 
@@ -217,7 +217,7 @@ $$\text{sim}(u, v) = \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \times \|\vec{v}\|
 
 ---
 
-## 7️⃣ Hybrid Recommendation
+## 7. Hybrid Recommendation
 
 ### Combination Method: Weighted Hybrid
 
@@ -233,7 +233,7 @@ Where:
 | Alpha (α) | CB Weight | CF Weight | Hit Rate |
 |-----------|-----------|-----------|----------|
 | 0.2 | 20% | 80% | 37.0% |
-| **0.3** | **30%** | **70%** | **37.5%** ✓ Best |
+| **0.3** | **30%** | **70%** | **37.5%** (Best) |
 | 0.4 | 40% | 60% | 37.0% |
 | 0.5 | 50% | 50% | 32.0% |
 | 0.6 | 60% | 40% | 19.5% |
@@ -250,7 +250,7 @@ Where:
 
 ---
 
-## 8️⃣ Evaluation
+## 8. Evaluation
 
 ### Metrics Used
 
@@ -265,9 +265,9 @@ Where:
 
 | Rank | Method | Precision@10 | Recall@10 | NDCG@10 | Hit Rate |
 |------|--------|--------------|-----------|---------|----------|
-| 🥇 | **CF (SVD k=20)** | **0.0977** | **0.0988** | **0.1280** | **49.67%** |
-| 🥈 | Hybrid (α=0.3) | 0.0763 | 0.0772 | 0.1001 | 41.33% |
-| 🥉 | CF (SVD k=10) | 0.0727 | 0.0729 | 0.0945 | 40.00% |
+| 1st | **CF (SVD k=20)** | **0.0977** | **0.0988** | **0.1280** | **49.67%** |
+| 2nd | Hybrid (α=0.3) | 0.0763 | 0.0772 | 0.1001 | 41.33% |
+| 3rd | CF (SVD k=10) | 0.0727 | 0.0729 | 0.0945 | 40.00% |
 | 4 | Popularity | 0.0150 | 0.0150 | 0.0184 | 11.33% |
 | 5 | Content-Based | 0.0100 | 0.0113 | 0.0157 | 8.33% |
 | 6 | Random | 0.0000 | 0.0000 | 0.0000 | 0.00% |
@@ -290,7 +290,7 @@ Where:
 
 ---
 
-## 9️⃣ How to Run the Code
+## 9. How to Run the Code
 
 ### Prerequisites
 
@@ -343,7 +343,7 @@ SAMPLE_SIZE = 20000  # Number of users (adjust based on RAM)
 
 ---
 
-## 🔟 Results
+## 10. Results
 
 ### Output Tables
 
@@ -385,7 +385,7 @@ User 5 - Hybrid Recommendations (α=0.3):
 
 ---
 
-## 1️⃣1️⃣ Contributors
+## 11. Contributors
 
 | Name | Role |
 |------|------|
@@ -396,7 +396,7 @@ User 5 - Hybrid Recommendations (α=0.3):
 
 ---
 
-## 1️⃣2️⃣ AI Assistance Disclosure
+## 12. AI Assistance Disclosure
 
 > **Disclosure:** This project used AI tools (ChatGPT/GitHub Copilot) for:
 > - Learning and understanding recommendation system concepts
